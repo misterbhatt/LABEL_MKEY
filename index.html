@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DTDC — Bulk Shipping Label Merger</title>
+  <style>
+    :root{
+      --bg: #0b1020;
+      --panel: #12193a;
+      --panel-2: #0f1530;
+      --accent: #4cc9f0;
+      --accent-2:#b5179e;
+      --text: #e6e9f3;
+      --muted:#9aa3c7;
+      --ok:#00c853;
+      --warn:#ffd54f;
+      --err:#ef5350;
+      --radius: 18px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 800px at 20% -10%, #182058 0%, var(--bg) 45%) no-repeat,
+                  radial-gradient(1200px 800px at 120% 10%, #1b3a5a 0%, var(--bg) 45%) no-repeat,
+                  var(--bg);
+      color:var(--text);
+      font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial;
+    }
+    h1{font-size:clamp(20px, 2.2vw, 30px); margin:0}
+    h2{font-size:clamp(16px, 1.6vw, 22px); margin:0 0 8px}
+    a{color:var(--accent)}
+    .wrap{max-width:1200px; margin:30px auto; padding:0 18px}
+    .header{display:flex; align-items:center; gap:16px; margin-bottom:18px}
+    .logo{width:48px;height:48px; border-radius:14px; display:grid; place-items:center;
+      background:linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow:var(--shadow); font-weight:700; color:#07101f;}
+    .tag{font-size:12px; color:var(--muted)}
+    .grid{display:grid; gap:18px; grid-template-columns: 1.2fr .8fr;}
+    @media (max-width: 980px){.grid{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      border:1px solid rgba(255,255,255,.08); border-radius:var(--radius);
+      box-shadow:var(--shadow); padding:18px;}
+    .dropzone{display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px;
+      border:2px dashed rgba(255,255,255,.18); border-radius:var(--radius);
+      padding:22px; text-align:center; cursor:pointer; transition:.25s;
+      background:linear-gradient(180deg, rgba(76,201,240,.08), transparent);}
+    .dropzone:hover{border-color:var(--accent)}
+    .dropzone input{display:none}
+    .controls{display:grid; gap:12px; grid-template-columns: 1fr 1fr}
+    @media (max-width:700px){.controls{grid-template-columns:1fr}}
+    label.small{font-size:12px; color:var(--muted)}
+    input, textarea, select{
+      width:100%; padding:12px 14px; border-radius:12px; background:var(--panel);
+      border:1px solid rgba(255,255,255,.08); color:var(--text); outline:none;
+    }
+    textarea{min-height:100px; resize:vertical}
+    input:focus, textarea:focus, select:focus{border-color:var(--accent)}
+    .btn{appearance:none; border:none; cursor:pointer; user-select:none;
+      padding:12px 16px; border-radius:12px; font-weight:700;
+      background:linear-gradient(135deg, var(--accent), var(--accent-2));
+      color:#08111f; box-shadow:var(--shadow);}
+    .btn[disabled]{opacity:.6; cursor:not-allowed}
+    .btn.secondary{background: linear-gradient(135deg, #8ec5ff, #b3b9ff);}
+    .btn.ghost{background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.18)}
+    .status{background:var(--panel-2); border-radius:12px; padding:12px;
+      font-family:ui-monospace; font-size:12px; max-height:260px; overflow:auto;}
+    .table{width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px}
+    .table th, .table td{padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06)}
+    .table th{font-size:12px; color:var(--muted); text-align:left}
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 10px;
+      border-radius:999px; font-size:12px; background:rgba(255,255,255,.06)}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+    .footer{margin-top:18px; color:var(--muted); font-size:12px}
+    .row{display:flex; gap:8px; flex-wrap:wrap}
+    .spacer{height:8px}
+    .hint{color:var(--muted); font-size:12px}
+    .code{font-family:ui-monospace; font-size:12px; background:rgba(255,255,255,.06);
+      padding:2px 6px; border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="logo">LB</div>
+      <div>
+        <h1>Bulk Shipping Label Merger — DTDC</h1>
+        <div class="tag">Upload Excel → read Consignment Numbers → fetch labels via API → merge into one PDF</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>1) Upload Excel / Paste List</h2>
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="file" accept=".xlsx,.xls,.csv" />
+          <div><strong>Drag & drop</strong> Excel/CSV here, or click to choose</div>
+        </label>
+        <label class="small">Or paste one AWB per line</label>
+        <textarea id="pasteArea" placeholder="1234567890&#10;XH00112233"></textarea>
+
+        <div class="controls">
+          <div>
+            <label class="small">API Key</label>
+            <input type="password" id="apiKey" placeholder="Enter API key" />
+            <button class="btn ghost" id="resetApiKeyBtn">Reset API Key</button>
+          </div>
+          <div>
+            <label class="small">Proxy URL</label>
+            <input type="url" id="proxyUrl" placeholder="https://proxy.example.com/label?reference_number={AWB}&label_code={LABEL_CODE}" />
+          </div>
+        </div>
+
+        <div class="controls">
+          <div>
+            <label class="small">Concurrency</label>
+            <select id="concurrency"><option>2</option><option selected>4</option><option>6</option><option>8</option></select>
+          </div>
+          <div>
+            <label class="small">Retries per label</label>
+            <select id="retries"><option>0</option><option selected>2</option><option>3</option><option>5</option></select>
+          </div>
+        </div>
+
+        <!-- Label Code Dropdown -->
+        <div class="controls">
+          <div>
+            <label class="small">Label Code</label>
+            <select id="labelCode">
+              <option value="SHIP_LABEL_A4">SHIP_LABEL_A4</option>
+              <option value="SHIP_LABEL_4X6" selected>SHIP_LABEL_4X6</option>
+              <option value="ROUTE_LABEL_4X4">ROUTE_LABEL_4X4</option>
+              <option value="ADDR_LABEL_4X2">ADDR_LABEL_4X2</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="parseBtn">Read Consignment Numbers</button>
+          <button class="btn ghost" id="sampleBtn">Download Sample Excel</button>
+        </div>
+
+        <h2>2) Fetch & Merge</h2>
+        <progress id="progress" value="0" max="100"></progress>
+        <div class="row">
+          <button class="btn" id="runBtn" disabled>Fetch labels & Build PDF</button>
+          <button class="btn secondary" id="downloadBtn" disabled>Download Merged PDF</button>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="card">
+        <h2>Detected Consignment Numbers</h2>
+        <table class="table" id="table">
+          <thead><tr><th>#</th><th>Consignment Number</th><th>Status</th><th>Bytes</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const log = (m,t='info')=>{
+      const el=document.createElement('div');
+      el.textContent=`[${new Date().toLocaleTimeString()}] ${m}`;
+      $('#status').prepend(el);
+    };
+    const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+    const sanitize=(v)=>String(v||'').trim();
+    const uniq=(a)=>[...new Set(a.filter(Boolean))];
+    const downloadBlob=(b,f)=>{const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=f;a.click();setTimeout(()=>URL.revokeObjectURL(u),2000);};
+
+    const state={awbs:[],rows:[],pdfBuffers:new Map(),mergedPdfBytes:null,apiKey:localStorage.getItem("apiKey")||"",labelCode:localStorage.getItem("labelCode")||"SHIP_LABEL_4X6"};
+
+    document.addEventListener("DOMContentLoaded",()=>{
+      if(state.apiKey) $("#apiKey").value=state.apiKey;
+      $("#labelCode").value=state.labelCode;
+    });
+    $("#apiKey").addEventListener("input",e=>{
+      state.apiKey=e.target.value.trim();
+      localStorage.setItem("apiKey",state.apiKey);
+    });
+    $("#resetApiKeyBtn").addEventListener("click",()=>{
+      state.apiKey="";$("#apiKey").value="";localStorage.removeItem("apiKey");
+    });
+    $("#labelCode").addEventListener("change",e=>{
+      state.labelCode=e.target.value;
+      localStorage.setItem("labelCode",state.labelCode);
+    });
+
+    function renderTable(){
+      const tbody=$('#tbody');tbody.innerHTML='';
+      state.rows.forEach((r,i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${i+1}</td><td><span class="pill">${r.awb}</span></td><td>${r.status||''}</td><td>${r.bytes||''}</td>`;
+        tbody.appendChild(tr);
+      });
+      $('#runBtn').disabled=state.awbs.length===0;
+    }
+
+    async function parseFile(file){
+      const data=await file.arrayBuffer();
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const json=XLSX.utils.sheet_to_json(ws,{defval:""});
+      const key=Object.keys(json[0]||{})[0];
+      return uniq(json.map(r=>sanitize(r[key])));
+    }
+    async function handleFile(file){
+      try{const awbs=await parseFile(file);state.awbs=awbs;state.rows=awbs.map(a=>({awb:a,status:'⏳ queued',bytes:0}));renderTable();}
+      catch(e){log("File parse error:"+e.message,'error')}
+    }
+    $('#file').addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0])});
+    $('#dropzone').addEventListener('click',()=>$('#file').click());
+
+    $('#parseBtn').addEventListener('click',()=>{
+      const text=$('#pasteArea').value.trim();
+      if(!text){log("Nothing to parse");return;}
+      const awbs=uniq(text.split(/\r?\n/).map(sanitize));
+      state.awbs=awbs;state.rows=awbs.map(a=>({awb:a,status:'⏳ queued',bytes:0}));renderTable();
+    });
+    $('#sampleBtn').addEventListener('click',()=>{
+      const wb=XLSX.utils.book_new();
+      const ws=XLSX.utils.aoa_to_sheet([["Consignment Number"],["1234567890"],["XH00112233"]]);
+      XLSX.utils.book_append_sheet(wb,ws,"Sheet1");
+      XLSX.writeFile(wb,"sample_awbs.xlsx");
+    });
+
+    const DIRECT_ENDPOINT="https://dtdcapi.shipsy.io/api/customer/integration/consignment/shippinglabel/stream";
+    async function fetchLabelPdf(awb){
+      const proxyUrl=$('#proxyUrl').value.trim();
+      const labelCode=state.labelCode;
+      if(proxyUrl){
+        const url=proxyUrl.replace("{AWB}",encodeURIComponent(awb)).replace("{LABEL_CODE}",encodeURIComponent(labelCode));
+        const res=await fetch(url);if(!res.ok)throw new Error("Proxy HTTP "+res.status);
+        return await res.arrayBuffer();
+      }
+      const url=`${DIRECT_ENDPOINT}?reference_number=${encodeURIComponent(awb)}&label_code=${labelCode}&label_format=pdf`;
+      const res=await fetch(url,{headers:{"api-key":state.apiKey}});
+      if(!res.ok)throw new Error("HTTP "+res.status);
+      return await res.arrayBuffer();
+    }
+
+    async function runQueue(){
+      const awbs=state.awbs;const conc=parseInt($('#concurrency').value);const retries=parseInt($('#retries').value);
+      let done=0;$('#progress').value=0;const results=new Map();
+      async function processOne(awb){
+        const row=state.rows.find(r=>r.awb===awb);
+        for(let i=0;i<=retries;i++){
+          try{
+            row.status=`fetching (try ${i+1})`;renderTable();
+            const pdf=await fetchLabelPdf(awb);
+            results.set(awb,pdf);row.bytes=pdf.byteLength;row.status="ok";renderTable();break;
+          }catch(e){row.status="err";if(i<retries)await sleep(500);}
+        }
+        done++;$('#progress').value=Math.round(done/awbs.length*100);
+      }
+      const q=[...awbs];
+      const workers=new Array(conc).fill().map(async()=>{while(q.length){await processOne(q.shift())}});
+      await Promise.all(workers);state.pdfBuffers=results;
+    }
+    async function mergePdfs(){
+      const merged=await PDFLib.PDFDocument.create();
+      for(const [awb,buf] of state.pdfBuffers){if(!buf)continue;
+        try{const doc=await PDFLib.PDFDocument.load(buf);const pages=await merged.copyPages(doc,doc.getPageIndices());pages.forEach(p=>merged.addPage(p));}
+        catch(e){log("Merge fail "+awb);}
+      }
+      state.mergedPdfBytes=await merged.save();
+    }
+
+    $('#runBtn').addEventListener('click',async()=>{
+      $('#runBtn').disabled=true;log("Fetching...");
+      await runQueue();log("Merging...");await mergePdfs();
+      $('#downloadBtn').disabled=false;log("Merged PDF ready.");
+    });
+    $('#downloadBtn').addEventListener('click',()=>{
+      if(state.mergedPdfBytes)downloadBlob(new Blob([state.mergedPdfBytes],{type:'application/pdf'}),"merged_labels.pdf");
+    });
+  </script>
+</body>
+</html>
